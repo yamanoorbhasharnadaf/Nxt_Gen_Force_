@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum-Safe Vault | PROJECT-Q 2026 Hackathon Demo</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Application JavaScript -->
+    <script src="script.js" defer></script>
+</head>
+
+<body class="min-h-screen flex flex-col justify-between antialiased">
+
+    <!-- NEW: QKD Handshake Login Page (BB84 simulation) -->
+    <div id="qkd-login" class="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+        <div class="glass-panel glass-panel-glow rounded-2xl w-full max-w-4xl p-6 space-y-5 my-auto">
+            <div class="flex items-center gap-3 border-b border-slate-800 pb-4">
+                <div class="p-2.5 bg-gradient-to-tr from-cyan-600 to-purple-600 rounded-xl shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-atom text-white text-xl"></i>
+                </div>
+                <div>
+                    <h2 class="font-bold text-white text-lg">PROJECT-Q Secure Login</h2>
+                    <p class="text-xs text-slate-400 font-mono">Quantum Key Distribution (BB84) Simulated Handshake</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div class="space-y-4">
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-mono text-slate-300">OPERATOR ID</label>
+                        <input id="login-operator" type="text" value="OPERATOR-01" autocomplete="off" class="w-full bg-slate-950 border border-slate-700 text-cyan-300 font-mono text-sm p-3 rounded-lg focus:outline-none focus:border-cyan-500">
+                    </div>
+
+                    <label class="flex items-start gap-3 bg-rose-950/30 border border-rose-800/40 rounded-lg p-3 cursor-pointer">
+                        <input id="login-eve" type="checkbox" class="mt-1 accent-rose-500">
+                        <span class="text-xs font-mono text-rose-200">
+                            Simulate eavesdropper (Eve) on the quantum channel
+                            <span class="block text-rose-300/70 mt-1">Handshake should be aborted and an alarm raised.</span>
+                        </span>
+                    </label>
+
+                    <button id="btn-qkd-start" onclick="startQKDHandshake()" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold py-2.5 px-4 rounded-lg shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+                        <i class="fa-solid fa-satellite-dish"></i> Start QKD Handshake
+                    </button>
+
+                    <div id="qkd-status" class="text-xs font-mono text-slate-400">Status: waiting for operator.</div>
+                </div>
+
+                <div class="space-y-3">
+                    <ul id="qkd-steps" class="space-y-2 text-xs font-mono"></ul>
+                    <div class="bg-slate-950/80 border border-slate-800 rounded-lg p-3 text-[11px] font-mono">
+                        <div class="grid grid-cols-5 text-slate-500 mb-1">
+                            <span>Qubit</span><span>Alice bit</span><span>Alice basis</span><span>Bob basis</span><span>Sift</span>
+                        </div>
+                        <div id="qkd-table" class="space-y-0.5 h-28 overflow-y-auto text-slate-300"></div>
+                    </div>
+                    <div class="flex justify-between text-xs font-mono bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2">
+                        <span class="text-slate-400">QBER: <strong id="qkd-qber" class="text-white">--</strong></span>
+                        <span class="text-slate-400">Limit: <strong class="text-amber-300">11%</strong></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Security Alert Notification -->
+    <div id="security-alert" class="hidden fixed inset-0 z-[200] items-center justify-center p-4 bg-rose-950/80 backdrop-blur-sm">
+        <div class="alert-box glass-panel rounded-2xl max-w-md w-full p-6 text-center space-y-4 border-2 border-rose-500">
+            <div class="mx-auto w-16 h-16 rounded-full bg-rose-600 flex items-center justify-center alert-pulse">
+                <i class="fa-solid fa-triangle-exclamation text-white text-3xl"></i>
+            </div>
+            <h2 id="alert-title" class="text-xl font-bold text-rose-300">SECURITY ALERT</h2>
+            <p id="alert-message" class="text-sm text-slate-200"></p>
+            <p id="alert-detail" class="text-xs font-mono text-rose-300/80 bg-slate-950 border border-rose-900 rounded-lg p-2"></p>
+            <button onclick="dismissSecurityAlert()" class="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-2.5 rounded-lg text-sm transition-all">
+                <i class="fa-solid fa-volume-xmark mr-1"></i> Acknowledge & Silence Alarm
+            </button>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="glass-panel sticky top-0 z-50 border-b border-cyan-500/20 px-4 lg:px-8 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-gradient-to-tr from-cyan-600 to-purple-600 rounded-xl shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-atom text-white text-xl animate-spin" style="animation-duration: 12s;"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg md:text-xl tracking-tight text-white flex items-center gap-2">
+                        PROJECT-Q
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-500/30">2026 Hackathon</span>
+                    </h1>
+                    <p class="text-xs text-slate-400 font-mono">Quantum-Safe Vault & Post-Quantum Encryption Pipeline</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-center gap-3 text-xs font-mono">
+                <div class="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-700">
+                    <span class="relative flex h-2.5 w-2.5">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                    <span class="text-slate-300">Qiskit Aer Simulator: <strong class="text-emerald-400">ONLINE</strong></span>
+                </div>
+
+                <div class="hidden sm:flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-700">
+                    <i class="fa-solid fa-shield-halved text-purple-400"></i>
+                    <span class="text-slate-300">Cipher: <strong class="text-purple-300">AES-256-GCM (Quantum Entropy)</strong></span>
+                </div>
+
+                <!-- NEW: QKD session badge + logout -->
+                <div class="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-cyan-700/50">
+                    <i class="fa-solid fa-satellite-dish text-cyan-400"></i>
+                    <span class="text-slate-300">Session: <strong id="session-badge" class="text-cyan-300">NONE</strong></span>
+                    <button onclick="logoutSession()" class="text-slate-400 hover:text-rose-400 ml-1" title="Log out">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl w-full mx-auto p-4 lg:p-6 space-y-6 flex-grow">
+
+        <!-- Metrics -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="glass-panel p-4 rounded-xl border-l-4 border-l-cyan-500 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-400 font-mono uppercase tracking-wider">Quantum Register</p>
+                    <p class="text-xl font-bold font-mono text-white mt-1">8 Qubits (Superposition)</p>
+                </div>
+                <i class="fa-solid fa-network-wired text-cyan-400/50 text-2xl"></i>
+            </div>
+
+            <div class="glass-panel p-4 rounded-xl border-l-4 border-l-purple-500 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-400 font-mono uppercase tracking-wider">Key Length Generated</p>
+                    <p id="metric-key-len" class="text-xl font-bold font-mono text-white mt-1">256 Bits</p>
+                </div>
+                <i class="fa-solid fa-key text-purple-400/50 text-2xl"></i>
+            </div>
+
+            <div class="glass-panel p-4 rounded-xl border-l-4 border-l-emerald-500 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-400 font-mono uppercase tracking-wider">Entropy Score</p>
+                    <p id="metric-entropy" class="text-xl font-bold font-mono text-emerald-400 mt-1">0.9998 bits/bit</p>
+                </div>
+                <i class="fa-solid fa-chart-line text-emerald-400/50 text-2xl"></i>
+            </div>
+
+            <div class="glass-panel p-4 rounded-xl border-l-4 border-l-amber-500 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-400 font-mono uppercase tracking-wider">State Verification</p>
+                    <p id="metric-verification" class="text-xl font-bold font-mono text-amber-300 mt-1">PASSED (GCM)</p>
+                </div>
+                <i class="fa-solid fa-lock text-amber-400/50 text-2xl"></i>
+            </div>
+        </div>
+
+        <!-- Quantum Circuit and Histogram -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <div class="lg:col-span-7 glass-panel rounded-xl p-5 space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <h2 class="font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-microchip text-cyan-400"></i>
+                        8-Qubit Quantum Circuit (QRNG Superposition)
+                    </h2>
+                    <span class="text-xs font-mono bg-cyan-950 text-cyan-300 px-2.5 py-1 rounded border border-cyan-800">
+                        Qiskit State: |Ψ⟩ = 1/√256 Σ |x⟩
+                    </span>
+                </div>
+
+                <div class="bg-slate-950/80 rounded-xl p-4 border border-slate-800 font-mono space-y-3 overflow-x-auto">
+                    <div class="text-xs text-slate-400 flex justify-between mb-2">
+                        <span>Circuit Wire Diagram</span>
+                        <span>Gates: Hadamard (H) ➔ Measurement (M)</span>
+                    </div>
+                    <div id="qubit-wires-container" class="space-y-2 min-w-[500px]"></div>
+                </div>
+
+                <div class="flex flex-wrap gap-3 pt-2">
+                    <button id="btn-generate-key" onclick="executeQuantumKeyGeneration()" class="flex-1 min-w-[200px] bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold py-2.5 px-4 rounded-lg shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 text-sm">
+                        <i class="fa-solid fa-bolt"></i> Generate 256-Bit Quantum Key
+                    </button>
+
+                    <button onclick="triggerMeasurementAnimation()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium py-2.5 px-4 rounded-lg text-sm transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-arrows-rotate text-cyan-400"></i> Sample State
+                    </button>
+                </div>
+            </div>
+
+            <div class="lg:col-span-5 glass-panel rounded-xl p-5 space-y-4 flex flex-col justify-between">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <h2 class="font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-chart-simple text-purple-400"></i>
+                        Measurement Histogram
+                    </h2>
+                    <span class="text-xs text-slate-400 font-mono">1024 Shots Simulation</span>
+                </div>
+
+                <div class="relative h-52 w-full flex items-center justify-center">
+                    <canvas id="quantumHistogramCanvas"></canvas>
+                </div>
+
+                <div class="bg-purple-950/30 border border-purple-800/40 rounded-lg p-3 text-xs text-purple-200 font-mono">
+                    <i class="fa-solid fa-circle-info text-purple-400 mr-1"></i>
+                    Equal measurement probabilities (~3.9% per state) confirm true quantum superposition entropy.
+                </div>
+            </div>
+        </div>
+
+        <!-- Encryption Vault -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <div class="lg:col-span-7 glass-panel rounded-xl p-5 space-y-5">
+                <div class="border-b border-slate-800 pb-3 flex justify-between items-center">
+                    <h2 class="font-bold text-white text-base flex items-center gap-2">
+                        <i class="fa-solid fa-vault text-amber-400"></i>
+                        Quantum-Safe Vault Operations
+                    </h2>
+                    <span class="text-xs font-mono text-amber-400 bg-amber-950/60 px-2.5 py-1 rounded border border-amber-800/50">
+                        AES-256-GCM Active
+                    </span>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-xs font-mono text-slate-300 flex justify-between">
+                        <span>ACTIVE QUANTUM ENTROPY KEY (HEX)</span>
+                        <span id="key-status-label" class="text-cyan-400">Live Generated</span>
+                    </label>
+                    <div class="relative">
+                        <input id="input-quantum-key" type="text" readonly class="w-full bg-slate-950 border border-slate-800 text-cyan-300 font-mono text-xs p-3 rounded-lg focus:outline-none focus:border-cyan-500 pr-10" value="Click 'Generate Key' above to initialize quantum state...">
+                        <button onclick="copyToClipboard('input-quantum-key')" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-white p-1 rounded">
+                            <i class="fa-regular fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- NEW: Key ID -->
+                <div class="space-y-1.5">
+                    <label class="text-xs font-mono text-slate-300">QUANTUM KEY ID</label>
+                    <div class="relative">
+                        <input id="output-key-id" type="text" readonly class="w-full bg-slate-950 border border-slate-800 text-amber-300 font-mono text-xs p-3 rounded-lg pr-10" placeholder="Key ID appears after key generation...">
+                        <button onclick="copyToClipboard('output-key-id')" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-white p-1 rounded">
+                            <i class="fa-regular fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-xs font-mono text-slate-300">SENSITIVE PAYLOAD INPUT</label>
+                    <textarea id="vault-input-text" rows="3" class="w-full bg-slate-900 border border-slate-700 text-slate-100 font-mono text-sm p-3 rounded-lg focus:outline-none focus:border-cyan-500 transition-all" placeholder="Enter confidential credentials, financial records, or system API keys to secure...">CONFIDENTIAL: Customer Risk Portfolio ID #98421-X9 - Security Authorization Approved.</textarea>
+                </div>
+
+                <!-- NEW: Key ID to verify on decryption -->
+                <div class="space-y-1.5">
+                    <label class="text-xs font-mono text-slate-300">KEY ID TO VERIFY (USED FOR DECRYPTION)</label>
+                    <input id="input-verify-id" type="text" autocomplete="off" class="w-full bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs p-3 rounded-lg focus:outline-none focus:border-cyan-500" placeholder="Auto-filled after encryption. Edit it to test a mismatch.">
+                </div>
+
+                <div class="flex flex-wrap gap-3">
+                    <button onclick="performEncryption()" class="flex-1 min-w-[140px] bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-2.5 px-4 rounded-lg shadow-lg shadow-purple-600/20 transition-all flex items-center justify-center gap-2 text-sm">
+                        <i class="fa-solid fa-lock"></i> Encrypt Payload
+                    </button>
+
+                    <button onclick="performDecryption()" class="flex-1 min-w-[140px] bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/40 font-bold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2 text-sm">
+                        <i class="fa-solid fa-lock-open"></i> Decrypt & Verify
+                    </button>
+
+                    <!-- NEW: Hacker attack simulation -->
+                    <button onclick="simulateHackerAttack()" class="flex-1 min-w-[140px] bg-rose-950/60 hover:bg-rose-900/70 text-rose-300 border border-rose-600/50 font-bold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2 text-sm">
+                        <i class="fa-solid fa-user-secret"></i> Simulate Hacker Attack
+                    </button>
+                </div>
+
+                <div class="space-y-3 pt-2">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-xs font-mono text-slate-400">INITIALIZATION VECTOR (NONCE - 96 bit)</label>
+                            <input id="output-nonce" type="text" readonly class="w-full bg-slate-950 border border-slate-800 text-purple-300 font-mono text-xs p-2.5 rounded-lg mt-1" placeholder="Nonce will appear here...">
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-mono text-slate-400">AUTHENTICATION TAG STATUS</label>
+                            <input id="output-authtag" type="text" readonly class="w-full bg-slate-950 border border-slate-800 text-emerald-400 font-mono text-xs p-2.5 rounded-lg mt-1" placeholder="Authentication state...">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-mono text-slate-400">ENCRYPTED CIPHERTEXT (HEX)</label>
+                        <div class="relative mt-1">
+                            <textarea id="output-ciphertext" rows="2" readonly class="w-full bg-slate-950 border border-slate-800 text-amber-300/90 font-mono text-xs p-2.5 rounded-lg focus:outline-none" placeholder="Encrypted ciphertext output..."></textarea>
+                            <button onclick="copyToClipboard('output-ciphertext')" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-white p-1 rounded">
+                                <i class="fa-regular fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-mono text-emerald-400">RESTORED DECRYPTED VERIFICATION</label>
+                        <div class="bg-emerald-950/20 border border-emerald-800/40 rounded-lg p-3 mt-1">
+                            <p id="output-decrypted-text" class="font-mono text-xs text-emerald-300 italic">Awaiting decryption request...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audit Console -->
+            <div class="lg:col-span-5 glass-panel rounded-xl p-5 space-y-3 flex flex-col justify-between">
+                <div class="border-b border-slate-800 pb-3 flex justify-between items-center">
+                    <h2 class="font-bold text-white text-base flex items-center gap-2">
+                        <i class="fa-solid fa-terminal text-cyan-400"></i>
+                        Security Audit Log
+                    </h2>
+                    <button onclick="clearConsoleLog()" class="text-xs text-slate-400 hover:text-white font-mono">Clear</button>
+                </div>
+
+                <div id="console-stream" class="bg-slate-950 rounded-lg p-3 font-mono text-[11px] text-slate-300 space-y-1.5 h-96 overflow-y-auto border border-slate-800"></div>
+
+                <div class="pt-2 text-xs text-slate-400 font-mono flex items-center justify-between">
+                    <span>Protocol: NIST PQC Round 4 Ready</span>
+                    <span class="text-cyan-400"><i class="fa-solid fa-shield text-xs mr-1"></i> Quantum Proof</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="border-t border-slate-800/80 bg-slate-950/80 py-4 px-6 text-center text-xs text-slate-500 font-mono mt-8">
+        PROJECT-Q 24-Hours Hackathon Demo | Powered by Qiskit Simulator & WebCrypto API
+    </footer>
+
+</body>
+</html>
